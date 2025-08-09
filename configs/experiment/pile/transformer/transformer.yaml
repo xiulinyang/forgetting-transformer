@@ -1,17 +1,17 @@
 # @package _global_
 defaults:
-  - override /model: forgetting_transformer
+  - override /model: transformer
   - override /optimizer: adam
   - override /schedule: warmup_cosine
   - override /datamodule: npy
   - override /strategy: fsdp
   - _self_
 
-exp: forgetting_gate
-tag: ft_l2_h256_h4_seq2048_adam
+exp: baseline_transformer
+tag: ft_l2_h256_h4_seq2048_adam_baseline_transformer
 seed: 42
 
-output_dir: forgetting_gate_model/
+output_dir: baseline_transformer_model/
 data_dir: data
 
 resume: True

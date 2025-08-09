@@ -5,7 +5,7 @@ from typing import Optional
 
 @dataclass
 class NPYDataModuleConfig(DataModuleConfig):
-    _target_: str = "forgetting_transformer.datamodule.npy.NPYDataModule"
+    _target_: str = "forgetting_transformer.datamodule.npy.NpyDataModule"
     data_path: str = "${data_dir}"
     rank: int = MISSING
     world_size: int = MISSING

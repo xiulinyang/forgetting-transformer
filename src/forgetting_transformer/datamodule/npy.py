@@ -1,181 +1,197 @@
-# src/forgetting_transformer/datamodule/npy.py
-from dataclasses import dataclass
-from typing import Optional, Tuple
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
+from typing import Optional, Union, Literal
+import lightning as L
+from torch.utils.data import Dataset, DataLoader, Sampler
 
-from .common import DataInfo, Batch
-from forgetting_transformer.utils import check_divisible
+from forgetting_transformer.datamodule.common import DataInfo, Batch
+from forgetting_transformer.utils import safe_divide, check_divisible
 
-class StatefulLoader:
-    """Wrap a PyTorch DataLoader to add state_dict()/load_state_dict() for resuming."""
-    def __init__(self, dataloader: DataLoader):
-        self._dataloader = dataloader
-        self._iter = None
+class NpyDataset(Dataset):
+    def __init__(
+        self,
+        data_path: Union[str, Path],
+        split: Literal["train", "heldout"],
+        world_size: int,
+        rank: int,
+        batch_size: int,
+        batch_len: int,
+        total_tokens: Optional[int] = None,
+        bos_token_id: Optional[int] = 50256,
+    ):
+        super().__init__()
+        self.data_path = Path(data_path)
+        self.data = np.load(self.data_path, mmap_mode="r")
+        self.num_rows, self.row_len = self.data.shape
+        self.split = split
+
+        assert batch_len in (self.row_len, ), f"batch_len={batch_len} which is different from {self.row_len}!"
+        self.batch_len = batch_len
+
+
+        self.world_size = world_size
+        self.rank = rank
+        self.global_batch_size = batch_size
+        self.local_batch_size = safe_divide(self.global_batch_size, world_size)
+
+
+        check_divisible(self.num_rows, self.global_batch_size)
+        self.batch_count = safe_divide(self.num_rows, self.global_batch_size)
+
+        self.tokens_per_batch = self.global_batch_size * self.batch_len
+        self.local_tokens_per_batch = self.local_batch_size * self.batch_len
+
+        if total_tokens is None:
+            self.total_tokens = self.batch_count * self.tokens_per_batch
+        else:
+            check_divisible(total_tokens, self.tokens_per_batch)
+            keep_batches = safe_divide(total_tokens, self.tokens_per_batch)
+            self.batch_count = keep_batches
+            self.total_tokens = self.batch_count * self.tokens_per_batch
+
+        self.bos_token_id = bos_token_id
+
+    def __len__(self):
+        return self.batch_count
+
+    def __getitem__(self, batch_id: int) -> Batch:
+        assert 0 <= batch_id < self.batch_count
+        global_row_start = batch_id * self.global_batch_size
+
+        start_row = global_row_start + self.rank * self.local_batch_size
+        end_row   = start_row + self.local_batch_size
+
+
+        data = self.data[start_row:end_row, :self.batch_len]   # numpy 的 view，不会复制
+        assert data.shape == (self.local_batch_size, self.batch_len)
+
+        labels = np.array(data, dtype=np.int64)
+        input_ids = np.array(data, dtype=np.int64)
+
+        input_ids = np.roll(input_ids, 1, axis=-1)
+        if self.bos_token_id is not None:
+            input_ids[..., 0] = self.bos_token_id
+
+        resets = np.zeros_like(labels, dtype=np.bool_)
+        resets[..., 0] = True
+
+        return Batch(input_ids=input_ids, labels=labels, resets=resets)
+
+
+class StatefulSampler(Sampler):
+    def __init__(self, dataset: Dataset):
+        super().__init__()
+        self.dataset = dataset
         self.batch_id = 0
 
+    def __len__(self):
+        return len(self.dataset)
+
     def __iter__(self):
-        self._iter = iter(self._dataloader)
-        return self
-
-    def __next__(self):
-        batch = next(self._iter)
-        self.batch_id += 1
-        return batch
-
-    def __getattr__(self, name):
-        return getattr(self._dataloader, name)
+        while self.batch_id < len(self):
+            cur = self.batch_id
+            self.batch_id += 1
+            yield cur
 
     def state_dict(self):
         return {"batch_id": self.batch_id}
 
-    def load_state_dict(self, state):
-        self.batch_id = state.get("batch_id", 0)
-
-class NPYSliceDataset(Dataset):
-    def __init__(self, path: str, seq_len: int):
-        self.path = Path(path)
-        self.seq_len = seq_len
-        self.arr = np.load(self.path, mmap_mode="r")  # 不占内存
-
-        if self.arr.ndim == 1:
-            total = self.arr.shape[0]
-            self.num_samples = total // seq_len
-            self.mode = "1d"
-        elif self.arr.ndim == 2:
-            assert self.arr.shape[1] == seq_len, f"Expected shape [N,{seq_len}], got {self.arr.shape}"
-            self.num_samples = self.arr.shape[0]
-            self.mode = "2d"
-        else:
-            raise ValueError(f"Unsupported npy shape: {self.arr.shape}")
-
-    def __len__(self):
-        return self.num_samples
-
-    def __getitem__(self, idx):
-        if self.mode == "1d":
-            start = idx * self.seq_len
-            end = start + self.seq_len
-            x = self.arr[start:end]
-        else:
-            x = self.arr[idx]
-        x = np.asarray(x, dtype=np.int64)
-        # labels = next-token；和训练脚本期望一致
-        input_ids = torch.from_numpy(x)
-        labels = input_ids.clone()
-        return input_ids, labels
-
-def _collate_batch(batch, bos_id: Optional[int], seq_len: int):
-
-    inputs = torch.stack([b[0] for b in batch], dim=0)  # (B, L)
-    labels = torch.stack([b[1] for b in batch], dim=0)  # (B, L)
-
-    if bos_id is not None:
-        inputs[:, 0] = bos_id
-    resets = torch.zeros_like(inputs, dtype=torch.bool)
-    resets[:, 0] = True
-    return Batch(input_ids=inputs, labels=labels, resets=resets)
+    def load_state_dict(self, state_dict):
+        self.batch_id = state_dict["batch_id"]
 
 
-class NPYDataModule:
+class NpyDataloader(DataLoader):
+    def state_dict(self):
+        assert isinstance(self.sampler, StatefulSampler)
+        return self.sampler.state_dict()
+
+    def load_state_dict(self, state_dict):
+        assert isinstance(self.sampler, StatefulSampler)
+        self.sampler.load_state_dict(state_dict)
+
+
+class NpyDataModule(L.LightningDataModule):
+
     def __init__(
         self,
-        data_path: str,
-        rank: int,
+        data_dir,
         world_size: int,
+        rank: int,
         train_batch_len: int,
         train_batch_size: int,
         train_num_workers: int,
-        eval_tokens: int,
         eval_batch_len: int,
         eval_local_batch_size: int,
         eval_num_workers: int,
-        train_seq_len: Optional[int] = None,
-        eval_seq_len: Optional[int] = None,
-        bos_token_id: Optional[int] = 0,
+        eval_total_tokens: Optional[int] = None,
+        bos_token_id: Optional[int] = 50256,
+        vocab_size: int = 50257,
     ):
-        self.data_path = data_path
-        self.rank = rank
+        super().__init__()
+        self.vocab_size = vocab_size
         self.world_size = world_size
-
-        self.train_batch_len = train_batch_len
-        self.train_batch_size = train_batch_size
+        self.rank = rank
         self.train_num_workers = train_num_workers
-
-        self.eval_tokens = eval_tokens
-        self.eval_batch_len = eval_batch_len
-        self.eval_local_batch_size = eval_local_batch_size
         self.eval_num_workers = eval_num_workers
 
-        self.train_seq_len = train_seq_len or train_batch_len
-        self.eval_seq_len = eval_seq_len or eval_batch_len
-        self.bos_token_id = bos_token_id
+        self.train_dataset = NpyDataset(
+            data_path=data_dir / "train.npy",
+            split="train",
+            world_size=world_size,
+            rank=rank,
+            batch_size=train_batch_size,
+            batch_len=train_batch_len,
+            total_tokens=None,
+            bos_token_id=bos_token_id,
+        )
 
+        self.val_dataset = NpyDataset(
+            data_path=data_dir / "val.npy",
+            split="heldout",
+            world_size=world_size,
+            rank=rank,
+            batch_size=eval_local_batch_size * world_size,
+            batch_len=eval_batch_len,
+            total_tokens=eval_total_tokens,
+            bos_token_id=bos_token_id,
+        )
 
-        assert self.train_seq_len == self.train_batch_len
-        assert (self.train_seq_len & (self.train_seq_len - 1)) == 0, "seq_len 必须是 2 的幂"
-        assert self.eval_seq_len == self.eval_batch_len
-
-        self._train_ds = None
-        self._eval_ds = None
-        self._vocab_size = None  # 如果你需要从数据推断，可以加逻辑
-
-
-    def prepare_data(self):
-        pass
-
-    def setup(self, stage=""):
-        self._train_ds = NPYSliceDataset(self.data_path, self.train_seq_len)
-        self._eval_ds = self._train_ds
-
-    def train_dataloader(self) -> Tuple[StatefulLoader, DataInfo]:
-        ds = self._train_ds
-        dl = DataLoader(
-            ds,
-            batch_size=self.train_batch_size,
-            shuffle=True,       # 简单起见
+    def train_dataloader(self):
+        sampler = StatefulSampler(self.train_dataset)
+        dl = NpyDataloader(
+            self.train_dataset,
+            batch_size=None,
+            shuffle=False,
+            sampler=sampler,
             num_workers=self.train_num_workers,
             pin_memory=True,
-            drop_last=True,
-            collate_fn=lambda b: _collate_batch(b, self.bos_token_id, self.train_seq_len),
         )
-        loader = StatefulLoader(dl)
-
-        global_tokens_per_batch = self.train_batch_size * self.train_batch_len
-        local_tokens_per_batch = global_tokens_per_batch  # 单机单进程
         info = DataInfo(
-            vocab_size=0,  # 置 0，主脚本会在构建模型前注入真实 vocab_size
-            global_tokens_per_batch=global_tokens_per_batch,
-            local_tokens_per_batch=local_tokens_per_batch,
-            batch_len=self.train_batch_len,
-            seq_len=self.train_seq_len,
-            total_tokens=ds.__len__() * self.train_seq_len,
+            vocab_size=self.vocab_size,
+            batch_len=self.train_dataset.batch_len,
+            global_tokens_per_batch=self.train_dataset.tokens_per_batch,
+            local_tokens_per_batch=self.train_dataset.local_tokens_per_batch,
+            seq_len=self.train_dataset.batch_len,
+            total_tokens=self.train_dataset.total_tokens,
         )
-        return loader, info
+        return dl, info
 
-    def val_dataloader(self) -> Tuple[StatefulLoader, DataInfo]:
-        ds = self._eval_ds
-        dl = DataLoader(
-            ds,
-            batch_size=self.eval_local_batch_size,
+    def val_dataloader(self):
+        dl = NpyDataloader(
+            self.val_dataset,
+            batch_size=None,
             shuffle=False,
+            sampler=None,
             num_workers=self.eval_num_workers,
             pin_memory=True,
-            drop_last=True,
-            collate_fn=lambda b: _collate_batch(b, self.bos_token_id, self.eval_seq_len),
         )
-        loader = StatefulLoader(dl)
-
-        global_tokens_per_batch = self.eval_local_batch_size * self.eval_batch_len
-        local_tokens_per_batch = global_tokens_per_batch
         info = DataInfo(
-            vocab_size=0,
-            global_tokens_per_batch=global_tokens_per_batch,
-            local_tokens_per_batch=local_tokens_per_batch,
-            batch_len=self.eval_batch_len,
-            seq_len=self.eval_seq_len,
-            total_tokens=min(self.eval_tokens, ds.__len__() * self.eval_seq_len),
+            vocab_size=self.vocab_size,
+            batch_len=self.val_dataset.batch_len,
+            global_tokens_per_batch=self.val_dataset.tokens_per_batch,
+            local_tokens_per_batch=self.val_dataset.local_tokens_per_batch,
+            seq_len=self.val_dataset.batch_len,
+            total_tokens=self.val_dataset.total_tokens,
         )
-        return loader, info
+        return dl, info

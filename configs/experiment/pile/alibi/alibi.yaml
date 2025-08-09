@@ -1,17 +1,17 @@
 # @package _global_
 defaults:
-  - override /model: forgetting_transformer
+  - override /model: alibi
   - override /optimizer: adam
   - override /schedule: warmup_cosine
   - override /datamodule: npy
   - override /strategy: fsdp
   - _self_
 
-exp: forgetting_gate
-tag: ft_l2_h256_h4_seq2048_adam
+exp: alibi
+tag: ft_l2_h256_h4_seq2048_adam_alibi
 seed: 42
 
-output_dir: forgetting_gate_model/
+output_dir: alibi_exp/
 data_dir: data
 
 resume: True
@@ -38,11 +38,11 @@ train:
 
 model:
   config:
-    vocab_size: 50257
     hidden_size: 256
     num_hidden_layers: 2
     num_heads: 4
-    use_rope: true
+    use_rope: false
+    use_alibi: true
     rope_base: 500000
     tie_word_embeddings: false
 
