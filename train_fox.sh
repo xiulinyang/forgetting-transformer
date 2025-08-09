@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 OUTPUT_DIR="./forgetting_gate/"  # You can set this to any other path
 WANDB_DIR="./output/wandb"  # You can set this to any other path
@@ -17,5 +17,5 @@ fabric run train.py \
     output_dir=$OUTPUT_DIR \
     data_dir=$DATA_DIR \
     wandb.log_dir=$WANDB_DIR \
-    wandb.mode=online \
+    wandb.mode=offline \
     resume=true
