@@ -1,0 +1,70 @@
+# @package _global_
+defaults:
+  - override /model: forgetting_transformer
+  - override /optimizer: adam
+  - override /schedule: warmup_cosine
+  - override /datamodule: npy
+  - override /strategy: fsdp
+  - _self_
+
+exp: forgetting_gate
+tag: ft_l2_h256_h4_seq2048_adam
+seed: 42
+
+output_dir: forgetting_gate_model/
+data_dir: batch_0_to_1000.npy
+
+resume: True
+
+log_interval: 20971520
+train_eval_interval: 104857600
+checkpoint_interval: 209715200
+
+skip_eval: true
+eval_interval: 2684354560
+checkpoint_keep_interval: 0
+
+
+fabric:
+  devices: 1
+  precision: '16-mixed'
+
+train:
+  max_tokens: 2097152000  # 1024*2048*1000
+  # Used for one gradient accumulation step, must be larger than batch_len
+  grad_acc_tokens: 32768
+  max_grad_norm: 1.0
+  gradient_checkpointing: true
+
+model:
+  config:
+    vocab_size: 50257
+    hidden_size: 256
+    num_hidden_layers: 2
+    num_heads: 4
+    use_rope: true
+    rope_base: 500000
+    tie_word_embeddings: false
+
+optimizer: 
+  lr: 0.001
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  weight_decay: 0.1
+
+schedule:
+  init_value: 0.0
+  peak_value: ${optimizer.lr}
+  warmup_steps: 20971520  # warm-up 1%
+  decay_steps: ${train.max_tokens}
+  end_value: 0.0 
+
+datamodule:
+  train_batch_len: 2048
+  train_batch_size: 1024
+  train_num_workers: 0
+
+  eval_batch_len: 2048
+  eval_local_batch_size: 2
+  eval_tokens: 2147483648  # ingore
+  eval_num_workers: 0
