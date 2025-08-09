@@ -5,7 +5,7 @@ WANDB_DIR="./output/wandb"  # You can set this to any other path
 mkdir -p $OUTPUT_DIR
 mkdir -p $WANDB_DIR
 fabric run train.py \
-    --devices 1 \
+    --devices 4 \
     --num-nodes 1 \
     --node-rank 0 \
     --main-address localhost \
