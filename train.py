@@ -365,6 +365,7 @@ def train(config: Config):
         fabric=fabric,
         log_dir=Path(config.output_dir) / "logs", resume=config.resume
     )
+    fabric.launch()
 
 
     # logging.info(f"Fabric initialized. World size: {fabric.world_size}")
