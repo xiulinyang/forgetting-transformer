@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import rich
 import rich.syntax
-
+from transformers import AutoTokenizer, AutoModelForCausalLM
 import hydra
 from omegaconf import OmegaConf, DictConfig
 import torch
@@ -54,6 +54,7 @@ def save_model():
     parser = argparse.ArgumentParser()
     parser.add_argument("--hf_load_dir", type=str, required=True)
     parser.add_argument("--hf_save_dir", type=str, required=True)
+    parser.add_argument("--hf_model_name", type=str, required=True)
     parser.add_argument("--hf_load_step", type=int, required=False)
     args = parser.parse_args()
 
@@ -116,9 +117,11 @@ def save_model():
     model.save_pretrained(path,)
     tokenizer.save_pretrained(path)
     print(f"Model and tokenizer saved to {path}")
-
+    model_name = args.hf_model_name
+    model.push_to_hub(f"{model_name}")
+    tokenizer.push_to_hub(f"{model_name}")
     # tokenizer = GPT2Tokenizer.from_pretrained("gpt2", add_bos_token=False, clean_up_tokenization_spaces=False, add_prefix_space=True)
-
+    print(f'Model and tokenizer pushed to {model_name}')
     # import ipdb; ipdb.set_trace()
 if __name__ == "__main__":
     save_model()  # pylint: disable=no-value-for-parameter
