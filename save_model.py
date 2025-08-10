@@ -166,7 +166,7 @@ def save_model():
     model.push_to_hub(f"{model_name}")
     tokenizer.push_to_hub(f"{model_name}")
     api = HfApi()
-    api.create_repo(model_name, exist_ok=True)
+    api.create_repo(f'xiulinyang/{model_name}', exist_ok=True)
     upload_folder(
         repo_id=model_name,
         folder_path=path,
