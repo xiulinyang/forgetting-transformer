@@ -12,7 +12,7 @@ tag: ft_l2_h256_h4_seq2048_adam
 seed: 42
 
 output_dir: forgetting_gate_model/
-data_dir: /scratch/xiulyang/forgetting-transformer/data/
+data_dir: /workspace/forgetting-transformer/data/
 
 resume: True
 
@@ -21,8 +21,8 @@ train_eval_interval: 104857600
 checkpoint_interval: 209715200
 
 skip_eval: true
-eval_interval: 2097152000
-checkpoint_keep_interval: 2097152000
+eval_interval: 209715200
+checkpoint_keep_interval: 209715200
 
 
 fabric:

@@ -5,9 +5,9 @@ WANDB_DIR="./output/wandb"  # You can set this to any other path
 mkdir -p $OUTPUT_DIR
 mkdir -p $WANDB_DIR
 
-torchrun --nproc_per_node=4 --master_port=1234 train.py \
+torchrun --nproc_per_node=1 --master_port=1234 train.py \
   +experiment/pile/forgetting_transformer=forgetting_gate \
-  fabric.devices=4 \
+  fabric.devices=1 \
   fabric.precision=16-mixed \
   seed=42 \
   exp=forgetting_gate_exp \
