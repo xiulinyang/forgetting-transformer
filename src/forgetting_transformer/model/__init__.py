@@ -18,6 +18,6 @@ with warnings.catch_warnings():
         ForgettingAttentionLayer
     )
 
-    for model in ["mamba2", "forgetting_transformer", "transformer", "delta_net", "hgrn2", "samba"]:
+    for model in ["alibi", "forgetting_transformer", "transformer"]:
         # We do not want to espose the names.
             importlib.import_module(f".{model}", __name__)
