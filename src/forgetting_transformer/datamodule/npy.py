@@ -134,9 +134,9 @@ class NpyDataModule(L.LightningDataModule):
         self.rank = rank
         self.train_num_workers = train_num_workers
         self.eval_num_workers = eval_num_workers
-
+        self.data_dir = data_path
         self.train_dataset = NpyDataset(
-            data_path=data_path / "train.npy",
+            data_path=self.data_dir / "train.npy",
             split="train",
             world_size=world_size,
             rank=rank,
@@ -147,7 +147,7 @@ class NpyDataModule(L.LightningDataModule):
         )
 
         self.val_dataset = NpyDataset(
-            data_path=data_path / "eval.npy",
+            data_path=self.data_dir / "eval.npy",
             split="heldout",
             world_size=world_size,
             rank=rank,
