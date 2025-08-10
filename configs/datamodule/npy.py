@@ -11,10 +11,8 @@ class NPYDataModuleConfig(DataModuleConfig):
     world_size: int = MISSING
     train_batch_len: int = MISSING
     train_batch_size: int = MISSING
-    train_doc_len: Optional[int] = None
     train_num_workers: int = MISSING
     eval_tokens: int = MISSING
     eval_batch_len: int = MISSING
     eval_local_batch_size: int = MISSING
-    eval_doc_len: Optional[int] = None
     eval_num_workers: int = MISSING
