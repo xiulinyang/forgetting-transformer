@@ -448,7 +448,7 @@ class AlibiModel(TransformerPreTrainedModel):
         )
 
 
-class AlibiConfigForCausalLM(TransformerPreTrainedModel):
+class AlibiForCausalLM(TransformerPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
