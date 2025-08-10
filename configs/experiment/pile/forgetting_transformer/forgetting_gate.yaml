@@ -12,7 +12,7 @@ tag: ft_l2_h256_h4_seq2048_adam
 seed: 42
 
 output_dir: forgetting_gate_model/
-data_dir: /sratch/xiulyang/forgetting-transformer/data
+data_dir: /scratch/xiulyang/forgetting-transformer/data/
 
 resume: True
 
