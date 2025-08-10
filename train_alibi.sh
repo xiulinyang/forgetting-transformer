@@ -6,7 +6,7 @@ mkdir -p $OUTPUT_DIR
 mkdir -p $WANDB_DIR
 
 torchrun --nproc_per_node=1 --master_port=29500 train.py \
-  +experiment/pile/forgetting_transformer=alibi \
+  +experiment/pile/alibi=alibi \
   fabric.devices=1 \
   fabric.precision=16-mixed \
   seed=42 \
