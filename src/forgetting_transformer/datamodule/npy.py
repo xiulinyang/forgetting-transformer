@@ -130,8 +130,8 @@ class NpyDataModule(L.LightningDataModule):
         eval_local_batch_size: int,
         eval_num_workers: int,
         eval_tokens: Optional[int] = None,
-        bos_token_id: Optional[int] = 50256,
-        vocab_size: int = 50257,
+        bos_token_id: Optional[int] = None,
+        vocab_size: int = 50277,
     ):
         super().__init__()
         self.vocab_size = vocab_size
