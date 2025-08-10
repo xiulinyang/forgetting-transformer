@@ -43,7 +43,6 @@ model:
     num_heads: 4
     use_rope: false
     use_alibi: true
-    rope_base: 500000
     tie_word_embeddings: false
 
 optimizer: 
