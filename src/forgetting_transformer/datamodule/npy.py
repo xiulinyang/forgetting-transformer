@@ -25,6 +25,11 @@ class NpyDataset(Dataset):
         self.data = np.load(self.data_path, mmap_mode="r")
         self.num_rows, self.row_len = self.data.shape
         self.split = split
+        if self.row_len > batch_len:
+            self.data = self.data[:, :batch_len]
+            self.row_len = batch_len
+        elif self.row_len < batch_len:
+            raise ValueError(f"Data row_len={self.row_len} is smaller than batch_len={batch_len}")
 
         assert batch_len in (self.row_len, ), f"batch_len={batch_len} which is different from {self.row_len}!"
         self.batch_len = batch_len
