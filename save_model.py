@@ -12,6 +12,8 @@ import torch
 import lightning as L
 from lightning.fabric.utilities.rank_zero import rank_zero_only
 import os
+from huggingface_hub import HfApi, create_repo, upload_folder
+
 import os.path as osp
 from torch import nn
 import colorlog
@@ -163,6 +165,14 @@ def save_model():
     model_name = args.hf_model_name
     model.push_to_hub(f"{model_name}")
     tokenizer.push_to_hub(f"{model_name}")
+    api = HfApi()
+    api.create_repo(model_name, exist_ok=True)
+    upload_folder(
+        repo_id=model_name,
+        folder_path=path,
+        commit_message="add remote code + model files",
+        allow_patterns="*",
+    )
     # tokenizer = GPT2Tokenizer.from_pretrained("gpt2", add_bos_token=False, clean_up_tokenization_spaces=False, add_prefix_space=True)
     print(f'Model and tokenizer pushed to {model_name}')
     # import ipdb; ipdb.set_trace()
