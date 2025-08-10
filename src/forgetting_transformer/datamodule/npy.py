@@ -147,7 +147,7 @@ class NpyDataModule(L.LightningDataModule):
         )
 
         self.val_dataset = NpyDataset(
-            data_path=data_dir / "val.npy",
+            data_path=data_dir / "eval.npy",
             split="heldout",
             world_size=world_size,
             rank=rank,
