@@ -13,7 +13,6 @@ torchrun --nproc_per_node=4 --master_port=1234 train.py \
   exp=forgetting_gate_exp \
   tag=ft_l2_h256_h4_seq2048_adam \
   output_dir=./forgetting_gate/ \
-  data_dir=$DATA_DIR \
   wandb.log_dir=./output/wandb \
   wandb.mode=online \
   resume=false
