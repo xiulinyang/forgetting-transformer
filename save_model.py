@@ -147,16 +147,16 @@ def save_model():
 
 
     src_root = Path(f"src/forgetting_transformer/model/{config_name}")
-
-    src_cfg = src_root / f"configuration_{config_name}.py"
-    src_model = src_root / f"modeling_{config_name}.py"
-    if not src_cfg.exists() or not src_model.exists():
-        raise FileNotFoundError(f"Missing remote code: {src_cfg} or {src_model}")
-
-    if src_cfg.exists():
-        shutil.copyfile(src_cfg, path / f"configuration_{config_name}.py")
-    if src_model.exists():
-        shutil.copyfile(src_model, path / f"modeling_{config_name}.py")
+    shutil.copytree(src_root, path, dirs_exist_ok=True)
+    # src_cfg = src_root / f"configuration_{config_name}.py"
+    # src_model = src_root / f"modeling_{config_name}.py"
+    # if not src_cfg.exists() or not src_model.exists():
+    #     raise FileNotFoundError(f"Missing remote code: {src_cfg} or {src_model}")
+    #
+    # if src_cfg.exists():
+    #     shutil.copyfile(src_cfg, path / f"configuration_{config_name}.py")
+    # if src_model.exists():
+    #     shutil.copyfile(src_model, path / f"modeling_{config_name}.py")
     Path(path / "__init__.py").write_text("# for HF remote code\n")
 
 
