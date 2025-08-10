@@ -6,6 +6,7 @@ import rich
 import rich.syntax
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import hydra
+import shutil
 from omegaconf import OmegaConf, DictConfig
 import torch
 import lightning as L
@@ -35,6 +36,23 @@ import pprint
 from forgetting_transformer.tokenizer import JSONGPT2Tokenizer
 import argparse
 
+REMOTE_CODE_REGISTRY = {
+    "forgetting_transformer": {
+        "src_subdir": "forgetting_transformer",
+        "config_class": "ForgettingTransformerConfig",
+        "model_class": "ForgettingTransformerForCausalLM",
+    },
+    "alibi": {
+        "src_subdir": "alibi",
+        "config_class": "TransformerConfig",
+        "model_class": "TransformerForCausalLM",
+    },
+    "transformer": {
+        "src_subdir": "transformer",
+        "config_class": "TransformerConfig",
+        "model_class": "TransformerForCausalLM",
+    },
+}
 
 @dataclass
 class ModelInfo:
@@ -55,6 +73,7 @@ def save_model():
     parser.add_argument("--hf_load_dir", type=str, required=True)
     parser.add_argument("--hf_save_dir", type=str, required=True)
     parser.add_argument("--hf_model_name", type=str, required=True)
+    parser.add_argument("--hf_config_name", type=str, required=True)
     parser.add_argument("--hf_load_step", type=int, required=False)
     args = parser.parse_args()
 
@@ -111,10 +130,32 @@ def save_model():
         raise ValueError(f"Unknow data module {config.datamodule._target_}")
     # tokenizer = GPT2Tokenizer.from_pretrained("gpt2", add_bos_token=False, clean_up_tokenization_spaces=False, add_prefix_space=False)
     tokenizer.model_max_length = data_info["train_data_info/batch_len"]
+    config_name = args.hf_config_name
+    config_class = REMOTE_CODE_REGISTRY[config_name]['config_class']
+    model_class = REMOTE_CODE_REGISTRY[config_name]['model_class']
+    model.config.auto_map = {
+        "AutoConfig": f"configuration_{config_name}.{config_class}",
+        "AutoModelForCausalLM": f"modeling_{config_name}.{model_class}",
+    }
+    model.config.model_type = config_name
 
     path = Path(args.hf_save_dir)
     path.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(path,)
+    model.save_pretrained(path, safe_serialization=True)
+
+
+    src_root = Path(f"src/forgetting_transformer/model/{config_name}")
+
+    src_cfg = src_root / f"configuration_{config_name}.py"
+    src_model = src_root / f"modeling_{config_name}.py"
+
+    if src_cfg.exists():
+        shutil.copyfile(src_cfg, path / f"configuration_{config_name}.py")
+    if src_model.exists():
+        shutil.copyfile(src_model, path / f"modeling_{config_name}.py")
+    (path / "__init__.py").write_text("# for HF remote code\n")
+
+
     tokenizer.save_pretrained(path)
     print(f"Model and tokenizer saved to {path}")
     model_name = args.hf_model_name
