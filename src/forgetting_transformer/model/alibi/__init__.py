@@ -2,13 +2,13 @@
 
 from transformers import AutoConfig, AutoModel, AutoModelForCausalLM
 
-from .configuration_alibi import TransformerConfig
+from .configuration_alibi import AlibiConfig
 from .modeling_alibi import (
-    TransformerForCausalLM, TransformerModel)
+    AlibiForCausalLM, AlibiModel)
 
-AutoConfig.register(TransformerConfig.model_type, TransformerConfig)
-AutoModel.register(TransformerConfig, TransformerModel)
-AutoModelForCausalLM.register(TransformerConfig, TransformerForCausalLM)
+AutoConfig.register(AlibiConfig.model_type, AlibiConfig)
+AutoModel.register(AlibiConfig, AlibiModel)
+AutoModelForCausalLM.register(AlibiConfig, AlibiForCausalLM)
 
 
 
