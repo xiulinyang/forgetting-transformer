@@ -12,4 +12,4 @@ AutoModelForCausalLM.register(TransformerConfig, TransformerForCausalLM)
 
 
 
-__all__ = ['TransformerConfig', 'TransformerForCausalLM', 'TransformerModel']
+__all__ = ['AlibiConfig', 'AlibiForCausalLM', 'AlibiModel']

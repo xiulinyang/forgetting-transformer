@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 from fla.modules import FusedCrossEntropyLoss, RMSNorm,RotaryEmbedding
+from jedi.inference.lazy_value import AbstractLazyValue
 from torch.nn import functional as F
 from fla.modules.activations import swiglu_linear
 from transformers.activations import ACT2FN
@@ -20,7 +21,7 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
 from einops import rearrange
 
-from forgetting_transformer.model.transformer.configuration_transformer import TransformerConfig
+from forgetting_transformer.model.transformer.configuration_alibi import AlibiConfig
 
 from functools import partial
 
@@ -209,7 +210,7 @@ class TransformerMLP(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, config: TransformerConfig, layer_idx: int):
+    def __init__(self, config: AlibiConfig, layer_idx: int):
         super().__init__()
         self.hidden_size = config.hidden_size
 
@@ -313,7 +314,7 @@ class TransformerBlock(nn.Module):
 
 class TransformerPreTrainedModel(PreTrainedModel):
 
-    config_class = TransformerConfig
+    config_class = AlibiConfig
     supports_gradient_checkpointing = True
     _no_split_modules = ['TransformerBlock']
 
@@ -336,9 +337,9 @@ class TransformerPreTrainedModel(PreTrainedModel):
                 module.weight.data[module.padding_idx].zero_()
 
 
-class TransformerModel(TransformerPreTrainedModel):
+class AlibiModel(TransformerPreTrainedModel):
 
-    def __init__(self, config: TransformerConfig):
+    def __init__(self, config: AlibiConfig):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
@@ -447,12 +448,12 @@ class TransformerModel(TransformerPreTrainedModel):
         )
 
 
-class TransformerForCausalLM(TransformerPreTrainedModel):
+class AlibiConfigForCausalLM(TransformerPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
         super().__init__(config)
-        self.model = TransformerModel(config)
+        self.model = AlibiModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 

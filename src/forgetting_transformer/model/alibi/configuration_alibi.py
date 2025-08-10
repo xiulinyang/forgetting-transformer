@@ -5,7 +5,7 @@ from typing import Optional
 from transformers.configuration_utils import PretrainedConfig
 
 
-class TransformerConfig(PretrainedConfig):
+class AlibiConfig(PretrainedConfig):
 
     model_type = 'transformer-project_fox'
     keys_to_ignore_at_inference = ['past_key_values']
