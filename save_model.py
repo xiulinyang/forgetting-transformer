@@ -104,6 +104,8 @@ def save_model():
         tokenizer = AutoTokenizer.from_pretrained("fla-hub/gla-1.3B-100B")
     elif "LongCrawl" in config.datamodule._target_:
         tokenizer = JSONGPT2Tokenizer.from_pretrained("gpt2", add_bos_token=True, clean_up_tokenization_spaces=False, add_prefix_space=False)
+    elif 'npy' in config.datamodule._target_:
+        tokenizer = AutoTokenizer.from_pretrained('EleutherAI/pythia-1.4b')
     else:
         raise ValueError(f"Unknow data module {config.datamodule._target_}")
     # tokenizer = GPT2Tokenizer.from_pretrained("gpt2", add_bos_token=False, clean_up_tokenization_spaces=False, add_prefix_space=False)
