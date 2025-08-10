@@ -115,7 +115,7 @@ class NpyDataModule(L.LightningDataModule):
 
     def __init__(
         self,
-        data_dir,
+        data_path,
         world_size: int,
         rank: int,
         train_batch_len: int,
@@ -136,7 +136,7 @@ class NpyDataModule(L.LightningDataModule):
         self.eval_num_workers = eval_num_workers
 
         self.train_dataset = NpyDataset(
-            data_path=data_dir / "train.npy",
+            data_path=data_path / "train.npy",
             split="train",
             world_size=world_size,
             rank=rank,
@@ -147,7 +147,7 @@ class NpyDataModule(L.LightningDataModule):
         )
 
         self.val_dataset = NpyDataset(
-            data_path=data_dir / "eval.npy",
+            data_path=data_path / "eval.npy",
             split="heldout",
             world_size=world_size,
             rank=rank,
