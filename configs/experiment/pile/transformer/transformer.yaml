@@ -21,8 +21,8 @@ train_eval_interval: 104857600
 checkpoint_interval: 209715200
 
 skip_eval: true
-eval_interval: 2097152000
-checkpoint_keep_interval: 2097152000
+eval_interval: 209715200
+checkpoint_keep_interval: 209715200
 
 
 fabric:

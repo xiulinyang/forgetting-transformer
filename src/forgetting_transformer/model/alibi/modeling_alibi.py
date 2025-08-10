@@ -85,13 +85,10 @@ class Attention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
 
         B, T, _ = hidden_states.size()
-
-        # 1) 线性投影得到 q/k/v，形状先做成 [B, T, H, Dh]
         q = rearrange(self.q_proj(hidden_states), 'b t (h d) -> b t h d', h=self.num_heads)
         k = rearrange(self.k_proj(hidden_states), 'b t (h d) -> b t h d', h=self.num_kv_heads)
         v = rearrange(self.v_proj(hidden_states), 'b t (h d) -> b t h d', h=self.num_kv_heads)
 
-        # 2) RoPE（可选）：原工程的 RotaryEmbedding 就是按 [B, T, H, D] 用的
         seqlen_offset = 0
         max_seqlen = q.shape[1]
         if past_key_values is not None:
@@ -103,16 +100,15 @@ class Attention(nn.Module):
         if self.rotary is not None:
             q, k = self.rotary(q, k, seqlen_offset, max_seqlen)
 
-        # 3) 变到 [B, H, T, D]
         q = rearrange(q, 'b t h d -> b h t d')
         k = rearrange(k, 'b t h d -> b h t d')
         v = rearrange(v, 'b t h d -> b h t d')
 
-        # 4) KV-cache：把当前 step 的 k/v 追加到缓存（与原工程接口兼容）
+
         if past_key_values is not None:
             k, v = past_key_values.update(k, v, self.layer_idx)
 
-        # 5) GQA：把 kv 头扩成 num_heads
+
         if self.num_kv_groups > 1:
             k = k.repeat_interleave(self.num_kv_groups, dim=1)  # [B, H, Tk, D]
             v = v.repeat_interleave(self.num_kv_groups, dim=1)  # [B, H, Tk, D]
@@ -120,37 +116,29 @@ class Attention(nn.Module):
         B, H, Tq, Dh = q.shape
         Tk = k.size(2)
 
-        # 6) 标准注意力打分
         scale = 1.0 / math.sqrt(Dh)
-        scores = torch.matmul(q, k.transpose(-2, -1)) * scale  # [B, H, Tq, Tk]
+        scores = torch.matmul(q, k.transpose(-2, -1)) * scale
 
-        # 7) Causal mask —— 正确处理 seqlen_offset 的版本（训练/解码都对）
-        #    允许第 i 个查询只看 <= (seqlen_offset+i) 的 keys
         pos_q = (seqlen_offset + torch.arange(Tq, device=scores.device))
         pos_k = torch.arange(Tk, device=scores.device)
         causal_mask = (pos_k.unsqueeze(0) > pos_q.unsqueeze(1))  # [Tq, Tk]
         scores = scores.masked_fill(causal_mask.view(1, 1, Tq, Tk), float('-inf'))
 
-        # 8) ALiBi（可选）：对长距离加线性负偏置
         if hasattr(self, "alibi_slopes"):
-            # bias = -slope * (i - j)
+
             rel = (pos_q.unsqueeze(1) - pos_k.unsqueeze(0)).to(torch.float32)  # [Tq, Tk]
             alibi_bias = -self.alibi_slopes.to(scores.device) * rel.view(1, 1, Tq, Tk)  # [1, H, Tq, Tk]
             scores = scores + alibi_bias.to(scores.dtype)
 
-        # 9) padding mask（keys 维度），attention_mask: [B, Tk]，1=有效 0=pad
+
         if attention_mask is not None and attention_mask.shape[-1] == Tk:
             pad_mask = (attention_mask == 0).view(B, 1, 1, Tk)
             scores = scores.masked_fill(pad_mask, float('-inf'))
 
-        # 10) 可选：局部窗口注意力（如果你想保留 window_size 语义）
         if self.window_size is not None:
-            # 屏蔽距离超过 window_size-1 的更早位置
-            # 允许 j >= i-(window_size-1)
             past_too_far = (pos_k.view(1, Tk) < (pos_q.view(Tq, 1) - (self.window_size - 1)))
             scores = scores.masked_fill(past_too_far.view(1, 1, Tq, Tk), float('-inf'))
 
-        # 11) softmax & 聚合
         attn = torch.softmax(scores, dim=-1)  # [B, H, Tq, Tk]
         o = torch.matmul(attn, v)  # [B, H, Tq, Dh]
         o = rearrange(o, 'b h t d -> b t (h d)')  # [B, Tq, H*Dh] = [B, Tq, hidden_size]
