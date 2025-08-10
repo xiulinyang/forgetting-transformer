@@ -21,7 +21,7 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
 from einops import rearrange
 
-from forgetting_transformer.model.transformer.configuration_alibi import AlibiConfig
+from forgetting_transformer.model.alibi.configuration_alibi import AlibiConfig
 
 from functools import partial
 
