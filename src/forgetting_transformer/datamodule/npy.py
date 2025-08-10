@@ -124,7 +124,7 @@ class NpyDataModule(L.LightningDataModule):
         eval_batch_len: int,
         eval_local_batch_size: int,
         eval_num_workers: int,
-        eval_total_tokens: Optional[int] = None,
+        eval_tokens: Optional[int] = None,
         bos_token_id: Optional[int] = 50256,
         vocab_size: int = 50257,
     ):
@@ -153,7 +153,7 @@ class NpyDataModule(L.LightningDataModule):
             rank=rank,
             batch_size=eval_local_batch_size * world_size,
             batch_len=eval_batch_len,
-            total_tokens=eval_total_tokens,
+            total_tokens=eval_tokens,
             bos_token_id=bos_token_id,
         )
 
